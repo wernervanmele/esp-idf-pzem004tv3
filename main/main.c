@@ -15,9 +15,9 @@ static const char * TAG = "APP_MAIN";
 /* @brief Set ESP32  Serial Configuration */
 pzemSetup_t pzConf =
 {
-    .pzem_uart      = UART_NUM_2,           /*  <== */
-    .pzem_rx_pin    = GPIO_NUM_16,          /*  <== */
-    .pzem_tx_pin    = GPIO_NUM_17,          /*  <== */
+    .pzem_uart      = UART_NUM_2,           /*  <== Specify the UART you want to use */
+    .pzem_rx_pin    = GPIO_NUM_16,          /*  <== GPIO for RX */
+    .pzem_tx_pin    = GPIO_NUM_17,          /*  <== GPIO for TX */
     .pzem_uart_mode = UART_MODE_UART,
     .pzem_addr      = PZ_DEFAULT_ADDRESS,
 };

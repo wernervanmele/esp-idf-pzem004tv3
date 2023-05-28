@@ -23,7 +23,6 @@ typedef struct pzConf_t
     uart_port_t pzem_uart;
     uint8_t pzem_rx_pin;
     uint8_t pzem_tx_pin;
-    uart_mode_t pzem_uart_mode;
     uint8_t pzem_addr;
 } pzemSetup_t;
 

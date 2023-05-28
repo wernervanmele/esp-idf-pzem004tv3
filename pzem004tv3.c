@@ -5,9 +5,7 @@
  */
 #include "pzem004tv3.h"
 
-
-
-uint64_t _lastRead = 0; /* Last time values were updated */
+static uint64_t _lastRead = 0; /* Last time values were updated */
 
 /**
  * @brief Initialize the UART, configured via struct pzemSetup_t
@@ -59,7 +57,7 @@ void PzemInit( pzemSetup_t * pzSetup )
  * @param pzSetup
  * @param resp
  * @param len
- * @return
+ * @return uint16_t
  */
 uint16_t PzemReceive( pzemSetup_t * pzSetup,
                       uint8_t * resp,
@@ -67,7 +65,8 @@ uint16_t PzemReceive( pzemSetup_t * pzSetup,
 {
     static const char * LOG_TAG = "PZ_RECEIVE";
 
-    uint16_t rxBytes = uart_read_bytes( pzSetup->pzem_uart, resp, len, pdMS_TO_TICKS( 500 ) );
+    /* Configure a temporary buffer for the incoming data */
+    uint16_t rxBytes = uart_read_bytes( pzSetup->pzem_uart, resp, len, pdMS_TO_TICKS( PZ_READ_TIMEOUT ) );
 
     if( rxBytes > 0 )
     {
@@ -83,7 +82,7 @@ uint16_t PzemReceive( pzemSetup_t * pzSetup,
 /**
  * @brief In case you forgot the address
  * @param update
- * @return
+ * @return uint8_t
  */
 uint8_t PzReadAddress( pzemSetup_t * pzSetup,
                        bool update )
@@ -115,12 +114,21 @@ uint8_t PzReadAddress( pzemSetup_t * pzSetup,
     return addr;
 }
 
+/**
+ * @brief Energy counter does not reset af restart, this function can reset the counter
+ * @param pzSetup
+ * @return bool
+ */
 bool PzResetEnergy( pzemSetup_t * pzSetup )
 {
-    uint8_t buffer[] = { 0x00, CMD_REST, 0x00, 0x00 };
-    uint8_t reply[ 5 ];
+    uint8_t * buffer = ( uint8_t * ) malloc( 4 + 1 );
+    uint8_t * reply = ( uint8_t * ) malloc( 5 + 1 );
 
     buffer[ 0 ] = pzSetup->pzem_addr;
+    buffer[ 1 ] = 0x00;
+    buffer[ 2 ] = CMD_REST;
+    buffer[ 3 ] = 0x00;
+    buffer[ 4 ] = 0x00;
 
     PzemSetCRC( buffer, 4 );
     uart_write_bytes( pzSetup->pzem_uart, buffer, 4 );
@@ -129,9 +137,13 @@ bool PzResetEnergy( pzemSetup_t * pzSetup )
 
     if( ( length == 0 ) || ( length == 5 ) )
     {
+        free( buffer );
+        free( reply );
         return false;
     }
 
+    free( buffer );
+    free( reply );
     return true;
 }
 
@@ -143,7 +155,7 @@ bool PzResetEnergy( pzemSetup_t * pzSetup )
  * @param regVal
  * @param check
  * @param slave_addr
- * @return
+ * @return bool
  */
 bool PzemSendCmd8( pzemSetup_t * pzSetup,
                    uint8_t cmd,
@@ -154,8 +166,9 @@ bool PzemSendCmd8( pzemSetup_t * pzSetup,
 {
     static const char * LOG_TAG = "PZ_SEND8";
 
-    uint8_t txdata[ TX_BUF_SIZE ];
-    uint8_t rxdata[ RX_BUF_SIZE ];
+    /* send and receive buffers memory allocation */
+    uint8_t * txdata = ( uint8_t * ) malloc( TX_BUF_SIZE + 1 );
+    uint8_t * rxdata = ( uint8_t * ) malloc( RX_BUF_SIZE + 1 );
 
     if( ( slave_addr == 0xFFFF ) ||
         ( slave_addr < 0x01 ) ||
@@ -171,6 +184,7 @@ bool PzemSendCmd8( pzemSetup_t * pzSetup,
     txdata[ 4 ] = ( regVal >> 8 ) & 0xFF;
     txdata[ 5 ] = ( regVal ) & 0xFF;
 
+    /* Add CRC to array */
     PzemSetCRC( txdata, TX_BUF_SIZE );
 
     const int txBytes = uart_write_bytes( pzSetup->pzem_uart, txdata, TX_BUF_SIZE );
@@ -180,8 +194,10 @@ bool PzemSendCmd8( pzemSetup_t * pzSetup,
 
     if( check )
     {
-        if( !PzemReceive( pzSetup, rxdata, RESP_BUF_SIZE ) ) /* if check enabled, read the response */
+        if( !PzemReceive( pzSetup, rxdata, RX_BUF_SIZE ) ) /* if check enabled, read the response */
         {
+            free( txdata );
+            free( rxdata );
             return false;
         }
 
@@ -190,17 +206,21 @@ bool PzemSendCmd8( pzemSetup_t * pzSetup,
         {
             if( txdata[ i ] != rxdata[ i ] )
             {
+                free( txdata );
+                free( rxdata );
                 return false;
             }
         }
     }
 
+    free( txdata );
+    free( rxdata );
     return true;
 }
 
 
 /**
- * @brief Retreive all measurements
+ * @brief Retreive all measurements, need 200ms paue between intervals
  * @param pzSetup
  * @param currentValues
  * @return
@@ -208,8 +228,6 @@ bool PzemSendCmd8( pzemSetup_t * pzSetup,
 bool PzemGetValues( pzemSetup_t * pzSetup,
                     _currentValues_t * currentValues )
 {
-    uint8_t respbuff[ RESP_BUF_SIZE ];
-
     if( ( unsigned long ) ( millis() - _lastRead ) > UPDATE_TIME )
     {
         _lastRead = millis();
@@ -219,11 +237,14 @@ bool PzemGetValues( pzemSetup_t * pzSetup,
         return true;
     }
 
+    uint8_t * respbuff = ( uint8_t * ) malloc( RESP_BUF_SIZE + 1 );
+
     /* Read 10 Registers from 0x00 to 0x0A without checking */
     PzemSendCmd8( pzSetup, CMD_RIR, 0x00, 0x0A, false, 0xFFFF );
 
     if( PzemReceive( pzSetup, respbuff, RESP_BUF_SIZE ) != RESP_BUF_SIZE )  /* Something went wrong */
     {
+        free( respbuff );
         return false;
     }
 
@@ -254,7 +275,7 @@ bool PzemGetValues( pzemSetup_t * pzSetup,
     currentValues->alarms = ( ( uint32_t ) respbuff[ 21 ] << 8 | /* Raw alarm value */
                               ( uint32_t ) respbuff[ 22 ] );
 
-
+    free( respbuff );
     return true;
 }
 

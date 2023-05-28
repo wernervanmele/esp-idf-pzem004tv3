@@ -10,7 +10,8 @@
 uint16_t crc16( const uint8_t * data,
                 uint16_t len );
 
-
+/* Pre Calculated CRC lookup table */
+/* source: https://www.modbustools.com/modbus_crc16.html */
 static const uint16_t crcTable[] =
 {
     0X0000, 0XC0C1, 0XC181, 0X0140, 0XC301, 0X03C0, 0X0280, 0XC241,

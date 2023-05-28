@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include "driver/uart.h"
 #include "driver/gpio.h"
 #include "hal/gpio_hal.h"
@@ -67,7 +66,7 @@ uint8_t PzReadAddress( pzemSetup_t * pzSetup,
 bool PzResetEnergy( pzemSetup_t * pzSetup );
 
 #define millis( x )              ( esp_timer_get_time( x ) / 1000 )
-#define UART_LL_GET_HW( num )    ( ( ( num ) == 0 ) ? ( &UART0 ) : ( ( ( num ) == 1 ) ? ( &UART1 ) : ( &UART2 ) ) )
+//#define UART_LL_GET_HW( num )    ( ( ( num ) == 0 ) ? ( &UART0 ) : ( ( ( num ) == 1 ) ? ( &UART1 ) : ( &UART2 ) ) )
 
 
 #define PZ_DEFAULT_ADDRESS    0xF8

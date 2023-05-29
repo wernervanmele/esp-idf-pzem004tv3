@@ -5,7 +5,7 @@
  */
 #include "pzem004tv3.h"
 
-static uint64_t _lastRead = 0; /* Last time values were updated */
+uint16_t _lastRead = 0; /* Last time values were updated */
 
 /**
  * @brief Initialize the UART, configured via struct pzemSetup_t
@@ -14,7 +14,6 @@ static uint64_t _lastRead = 0; /* Last time values were updated */
 void PzemInit( pzemSetup_t * pzSetup )
 {
     static const char * LOG_TAG = "PZ_INIT";
-
 
     ESP_LOGI( LOG_TAG, "Initializing UART" );
 
@@ -220,14 +219,15 @@ bool PzemSendCmd8( pzemSetup_t * pzSetup,
 
 
 /**
- * @brief Retreive all measurements, need 200ms paue between intervals
+ * @brief Retreive all measurements, leave 200ms between intervals
  * @param pzSetup
  * @param currentValues
- * @return
+ * @return bool
  */
 bool PzemGetValues( pzemSetup_t * pzSetup,
-                    _currentValues_t * currentValues )
+                    _currentValues_t * pmonValues )
 {
+    static const char * LOG_TAG = "PZ_GETVALUES";
     if( ( unsigned long ) ( millis() - _lastRead ) > UPDATE_TIME )
     {
         _lastRead = millis();
@@ -237,43 +237,58 @@ bool PzemGetValues( pzemSetup_t * pzSetup,
         return true;
     }
 
+    /* Zero all values */
+    PzemZeroValues( ( _currentValues_t * ) pmonValues );
+
     uint8_t * respbuff = ( uint8_t * ) malloc( RESP_BUF_SIZE + 1 );
 
-    /* Read 10 Registers from 0x00 to 0x0A without checking */
+    /* Tell the sensor to Read 10 Registers from 0x00 to 0x0A (all values) */
     PzemSendCmd8( pzSetup, CMD_RIR, 0x00, 0x0A, false, 0xFFFF );
 
+    /* Read response from the sensor, if everything goes well we retreived 25 Bytes */
     if( PzemReceive( pzSetup, respbuff, RESP_BUF_SIZE ) != RESP_BUF_SIZE )  /* Something went wrong */
     {
         free( respbuff );
         return false;
     }
 
-    currentValues->voltage = ( ( uint32_t ) respbuff[ 3 ] << 8 | /* Raw voltage in 0.1V */
-                               ( uint32_t ) respbuff[ 4 ] ) / 10.0;
+    if( !PzemCheckCRC( respbuff, RESP_BUF_SIZE ) )
+    {
+        ESP_LOGV( LOG_TAG, "Retreived buffer CRC check failed" );
+        return false;
+    }
+    else
+    {
+        ESP_LOGI( LOG_TAG, "CRC check OK for GetValues()" );
+    }
 
-    currentValues->current = ( ( uint32_t ) respbuff[ 5 ] << 8 | /* Raw current in 0.001A */
-                               ( uint32_t ) respbuff[ 6 ] |
-                               ( uint32_t ) respbuff[ 7 ] << 24 |
-                               ( uint32_t ) respbuff[ 8 ] << 16 ) / 1000.0;
+    pmonValues->voltage = ( ( uint32_t ) respbuff[ 3 ] << 8 | /* Raw voltage in 0.1V */
+                            ( uint32_t ) respbuff[ 4 ] ) / 10.0;
 
-    currentValues->power = ( ( uint32_t ) respbuff[ 9 ] << 8 | /* Raw power in 0.1W */
-                             ( uint32_t ) respbuff[ 10 ] |
-                             ( uint32_t ) respbuff[ 11 ] << 24 |
-                             ( uint32_t ) respbuff[ 12 ] << 16 ) / 10.0;
+    pmonValues->current = ( ( uint32_t ) respbuff[ 5 ] << 8 | /* Raw current in 0.001A */
+                            ( uint32_t ) respbuff[ 6 ] |
+                            ( uint32_t ) respbuff[ 7 ] << 24 |
+                            ( uint32_t ) respbuff[ 8 ] << 16 ) / 1000.0;
 
-    currentValues->energy = ( ( uint32_t ) respbuff[ 13 ] << 8 | /* Raw Energy in 1Wh */
-                              ( uint32_t ) respbuff[ 14 ] |
-                              ( uint32_t ) respbuff[ 15 ] << 24 |
-                              ( uint32_t ) respbuff[ 16 ] << 16 ) / 1000.0;
+    pmonValues->power = ( ( uint32_t ) respbuff[ 9 ] << 8 | /* Raw power in 0.1W */
+                          ( uint32_t ) respbuff[ 10 ] |
+                          ( uint32_t ) respbuff[ 11 ] << 24 |
+                          ( uint32_t ) respbuff[ 12 ] << 16 ) / 10.0;
 
-    currentValues->frequency = ( ( uint32_t ) respbuff[ 17 ] << 8 | /* Raw Frequency in 0.1Hz */
-                                 ( uint32_t ) respbuff[ 18 ] ) / 10.0;
+    pmonValues->energy = ( ( uint32_t ) respbuff[ 13 ] << 8 | /* Raw Energy in 1Wh */
+                           ( uint32_t ) respbuff[ 14 ] |
+                           ( uint32_t ) respbuff[ 15 ] << 24 |
+                           ( uint32_t ) respbuff[ 16 ] << 16 ) / 1000.0;
 
-    currentValues->pf = ( ( uint32_t ) respbuff[ 19 ] << 8 | /* Raw pf in 0.01 */
-                          ( uint32_t ) respbuff[ 20 ] ) / 100.0;
+    pmonValues->frequency = ( ( uint32_t ) respbuff[ 17 ] << 8 | /* Raw Frequency in 0.1Hz */
+                              ( uint32_t ) respbuff[ 18 ] ) / 10.0;
 
-    currentValues->alarms = ( ( uint32_t ) respbuff[ 21 ] << 8 | /* Raw alarm value */
-                              ( uint32_t ) respbuff[ 22 ] );
+    pmonValues->pf = ( ( uint32_t ) respbuff[ 19 ] << 8 | /* Raw pf in 0.01 */
+                       ( uint32_t ) respbuff[ 20 ] ) / 100.0;
+
+    /* Currently we don't set alarams yet, not implemented */
+    pmonValues->alarms = ( ( uint32_t ) respbuff[ 21 ] << 8 | /* Raw alarm value */
+                           ( uint32_t ) respbuff[ 22 ] );
 
     free( respbuff );
     return true;
@@ -315,4 +330,19 @@ bool PzemCheckCRC( const uint8_t * buf,
 
     uint16_t crc = crc16( buf, len - 2 ); /* Compute CRC of data */
     return ( ( uint16_t ) buf[ len - 2 ] | ( uint16_t ) buf[ len - 1 ] << 8 ) == crc;
+}
+
+/**
+ * @brief Reset all measured values in struct
+ * @param currentValues
+ */
+void PzemZeroValues( _currentValues_t * currentValues )
+{
+    currentValues->alarms = 0;
+    currentValues->current = 0.0f;
+    currentValues->energy = 0.0f;
+    currentValues->frequency = 0.0f;
+    currentValues->pf = 0.0f;
+    currentValues->power = 0.0f;
+    currentValues->voltage = 0.0f;
 }

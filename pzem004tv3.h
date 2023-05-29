@@ -57,12 +57,13 @@ void PzemSetCRC( uint8_t * buf,
                  uint16_t len );
 
 bool PzemGetValues( pzemSetup_t * pzSetup,
-                    _currentValues_t * currentValues );
+                    _currentValues_t * pmonValues );
 
 uint8_t PzReadAddress( pzemSetup_t * pzSetup,
                        bool update );
 
 bool PzResetEnergy( pzemSetup_t * pzSetup );
+void PzemZeroValues( _currentValues_t * currentValues );
 
 #define millis( x )              ( esp_timer_get_time( x ) / 1000 )
 //#define UART_LL_GET_HW( num )    ( ( ( num ) == 0 ) ? ( &UART0 ) : ( ( ( num ) == 1 ) ? ( &UART1 ) : ( &UART2 ) ) )

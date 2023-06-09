@@ -11,9 +11,9 @@ uint16_t _lastRead = 0; /* Last time values were updated */
  * @brief Initialize the UART, configured via struct pzemSetup_t
  * @param pzSetup
  */
-void PzemInit( pzemSetup_t * pzSetup )
+void PzemInit( pzem_setup_t *pzSetup )
 {
-    static const char * LOG_TAG = "PZ_INIT";
+    static const char *LOG_TAG = "PZ_INIT";
 
     ESP_LOGI( LOG_TAG, "Initializing UART" );
 
@@ -22,8 +22,7 @@ void PzemInit( pzemSetup_t * pzSetup )
 
     /* Configure parameters of an UART driver,
      * communication pins and install the driver */
-    uart_config_t uart_config =
-    {
+    uart_config_t uart_config = {
         .baud_rate  = PZ_BAUD_RATE,
         .data_bits  = UART_DATA_8_BITS,
         .parity     = UART_PARITY_DISABLE,
@@ -34,13 +33,16 @@ void PzemInit( pzemSetup_t * pzSetup )
 
     int intr_alloc_flags = 0;
 
-    #if CONFIG_UART_ISR_IN_IRAM
-        intr_alloc_flags = ESP_INTR_FLAG_IRAM;
-    #endif
+#if CONFIG_UART_ISR_IN_IRAM
+    intr_alloc_flags = ESP_INTR_FLAG_IRAM;
+#endif
+#if CONFIG_UART_MORE_PRIO
+    intr_alloc_flags = ESP_INTR_FLAG_LEVEL3;
+#endif
 
     ESP_LOGI( LOG_TAG, "UART set pins, mode and install driver." );
 
-/* Install UART driver using an event queue here */
+    /* Install UART driver using an event queue here */
     ESP_ERROR_CHECK( uart_driver_install( _uart_num, uart_buffer_size, 0, 0, NULL, intr_alloc_flags ) );
 
     /* Configure UART parameters */
@@ -58,17 +60,14 @@ void PzemInit( pzemSetup_t * pzSetup )
  * @param len
  * @return uint16_t
  */
-uint16_t PzemReceive( pzemSetup_t * pzSetup,
-                      uint8_t * resp,
-                      uint16_t len )
+uint16_t PzemReceive( pzem_setup_t *pzSetup, uint8_t *resp, uint16_t len )
 {
-    static const char * LOG_TAG = "PZ_RECEIVE";
+    static const char *LOG_TAG = "PZ_RECEIVE";
 
     /* Configure a temporary buffer for the incoming data */
     uint16_t rxBytes = uart_read_bytes( pzSetup->pzem_uart, resp, len, pdMS_TO_TICKS( PZ_READ_TIMEOUT ) );
 
-    if( rxBytes > 0 )
-    {
+    if ( rxBytes > 0 ) {
         resp[ rxBytes ] = 0;
         ESP_LOGV( LOG_TAG, "Read %d  bytes: '%s'", rxBytes, resp );
         ESP_LOG_BUFFER_HEXDUMP( LOG_TAG, resp, rxBytes, ESP_LOG_VERBOSE );
@@ -83,20 +82,17 @@ uint16_t PzemReceive( pzemSetup_t * pzSetup,
  * @param update
  * @return uint8_t
  */
-uint8_t PzReadAddress( pzemSetup_t * pzSetup,
-                       bool update )
+uint8_t PzReadAddress( pzem_setup_t *pzSetup, bool update )
 {
     static uint8_t response[ 7 ];
     uint8_t addr = 0;
 
     /* Read 1 register */
-    if( !PzemSendCmd8( pzSetup, CMD_RHR, WREG_ADDR, 0x01, false, 0xFFFF ) )
-    {
+    if ( !PzemSendCmd8( pzSetup, CMD_RHR, WREG_ADDR, 0x01, false, 0xFFFF ) ) {
         return INVALID_ADDRESS;
     }
 
-    if( PzemReceive( pzSetup, response, 7 ) != 7 ) /* Something went wrong */
-    {
+    if ( PzemReceive( pzSetup, response, 7 ) != 7 ) { /* Something went wrong */
         return INVALID_ADDRESS;
     }
 
@@ -105,8 +101,7 @@ uint8_t PzReadAddress( pzemSetup_t * pzSetup,
              ( uint32_t ) response[ 4 ] );
 
     /* Update the internal address if desired */
-    if( update )
-    {
+    if ( update ) {
         pzSetup->pzem_addr = addr;
     }
 
@@ -118,10 +113,10 @@ uint8_t PzReadAddress( pzemSetup_t * pzSetup,
  * @param pzSetup
  * @return bool
  */
-bool PzResetEnergy( pzemSetup_t * pzSetup )
+bool PzResetEnergy( pzem_setup_t *pzSetup )
 {
-    uint8_t * buffer = ( uint8_t * ) malloc( 4 + 1 );
-    uint8_t * reply = ( uint8_t * ) malloc( 5 + 1 );
+    uint8_t *buffer = ( uint8_t * ) malloc( 4 + 1 );
+    uint8_t *reply = ( uint8_t * ) malloc( 5 + 1 );
 
     buffer[ 0 ] = pzSetup->pzem_addr;
     buffer[ 1 ] = 0x00;
@@ -134,8 +129,7 @@ bool PzResetEnergy( pzemSetup_t * pzSetup )
 
     uint16_t length = PzemReceive( pzSetup, reply, 5 );
 
-    if( ( length == 0 ) || ( length == 5 ) )
-    {
+    if ( ( length == 0 ) || ( length == 5 ) ) {
         free( buffer );
         free( reply );
         return false;
@@ -156,23 +150,17 @@ bool PzResetEnergy( pzemSetup_t * pzSetup )
  * @param slave_addr
  * @return bool
  */
-bool PzemSendCmd8( pzemSetup_t * pzSetup,
-                   uint8_t cmd,
-                   uint16_t regAddr,
-                   uint16_t regVal,
-                   bool check,
-                   uint16_t slave_addr )
+bool PzemSendCmd8( pzem_setup_t *pzSetup, uint8_t cmd, uint16_t regAddr, uint16_t regVal, bool check, uint16_t slave_addr )
 {
-    static const char * LOG_TAG = "PZ_SEND8";
+    static const char *LOG_TAG = "PZ_SEND8";
 
     /* send and receive buffers memory allocation */
-    uint8_t * txdata = ( uint8_t * ) malloc( TX_BUF_SIZE + 1 );
-    uint8_t * rxdata = ( uint8_t * ) malloc( RX_BUF_SIZE + 1 );
+    uint8_t *txdata = ( uint8_t * ) malloc( TX_BUF_SIZE + 1 );
+    uint8_t *rxdata = ( uint8_t * ) malloc( RX_BUF_SIZE + 1 );
 
-    if( ( slave_addr == 0xFFFF ) ||
-        ( slave_addr < 0x01 ) ||
-        ( slave_addr > 0xF7 ) )
-    {
+    if ( ( slave_addr == 0xFFFF ) ||
+            ( slave_addr < 0x01 ) ||
+            ( slave_addr > 0xF7 ) ) {
         slave_addr = pzSetup->pzem_addr;
     }
 
@@ -191,20 +179,16 @@ bool PzemSendCmd8( pzemSetup_t * pzSetup,
     ESP_LOGV( LOG_TAG, "Wrote %d bytes", txBytes );
     ESP_LOG_BUFFER_HEXDUMP( LOG_TAG, txdata, txBytes, ESP_LOG_VERBOSE );
 
-    if( check )
-    {
-        if( !PzemReceive( pzSetup, rxdata, RX_BUF_SIZE ) ) /* if check enabled, read the response */
-        {
+    if ( check ) {
+        if ( !PzemReceive( pzSetup, rxdata, RX_BUF_SIZE ) ) { /* if check enabled, read the response */
             free( txdata );
             free( rxdata );
             return false;
         }
 
         /* Check if response is same as send */
-        for(uint8_t i = 0; i < 8; i++)
-        {
-            if( txdata[ i ] != rxdata[ i ] )
-            {
+        for (uint8_t i = 0; i < 8; i++) {
+            if ( txdata[ i ] != rxdata[ i ] ) {
                 free( txdata );
                 free( rxdata );
                 return false;
@@ -224,41 +208,33 @@ bool PzemSendCmd8( pzemSetup_t * pzSetup,
  * @param currentValues
  * @return bool
  */
-bool PzemGetValues( pzemSetup_t * pzSetup,
-                    _currentValues_t * pmonValues )
+bool PzemGetValues( pzem_setup_t *pzSetup, _current_values_t *pmonValues )
 {
-    static const char * LOG_TAG = "PZ_GETVALUES";
-    if( ( unsigned long ) ( millis() - _lastRead ) > UPDATE_TIME )
-    {
+    static const char *LOG_TAG = "PZ_GETVALUES";
+    if ( ( unsigned long ) ( millis() - _lastRead ) > UPDATE_TIME ) {
         _lastRead = millis();
-    }
-    else
-    {
+    } else {
         return true;
     }
 
     /* Zero all values */
-    PzemZeroValues( ( _currentValues_t * ) pmonValues );
+    PzemZeroValues( ( _current_values_t * ) pmonValues );
 
-    uint8_t * respbuff = ( uint8_t * ) malloc( RESP_BUF_SIZE + 1 );
+    uint8_t *respbuff = ( uint8_t * ) malloc( RESP_BUF_SIZE + 1 );
 
     /* Tell the sensor to Read 10 Registers from 0x00 to 0x0A (all values) */
     PzemSendCmd8( pzSetup, CMD_RIR, 0x00, 0x0A, false, 0xFFFF );
 
     /* Read response from the sensor, if everything goes well we retreived 25 Bytes */
-    if( PzemReceive( pzSetup, respbuff, RESP_BUF_SIZE ) != RESP_BUF_SIZE )  /* Something went wrong */
-    {
+    if ( PzemReceive( pzSetup, respbuff, RESP_BUF_SIZE ) != RESP_BUF_SIZE ) { /* Something went wrong */
         free( respbuff );
         return false;
     }
 
-    if( !PzemCheckCRC( respbuff, RESP_BUF_SIZE ) )
-    {
+    if ( !PzemCheckCRC( respbuff, RESP_BUF_SIZE ) ) {
         ESP_LOGV( LOG_TAG, "Retreived buffer CRC check failed" );
         return false;
-    }
-    else
-    {
+    } else {
         ESP_LOGI( LOG_TAG, "CRC check OK for GetValues()" );
     }
 
@@ -299,11 +275,9 @@ bool PzemGetValues( pzemSetup_t * pzSetup,
  * @param buf
  * @param len
  */
-void PzemSetCRC( uint8_t * buf,
-                 uint16_t len )
+void PzemSetCRC( uint8_t *buf, uint16_t len )
 {
-    if( len <= 2 ) /* sanity check */
-    {
+    if ( len <= 2 ) { /* sanity check */
         return;
     }
 
@@ -320,11 +294,9 @@ void PzemSetCRC( uint8_t * buf,
  * @param len
  * @return
  */
-bool PzemCheckCRC( const uint8_t * buf,
-                   uint16_t len )
+bool PzemCheckCRC( const uint8_t *buf, uint16_t len )
 {
-    if( len <= 2 )   /* Sanity check */
-    {
+    if ( len <= 2 ) { /* Sanity check */
         return false;
     }
 
@@ -336,7 +308,7 @@ bool PzemCheckCRC( const uint8_t * buf,
  * @brief Reset all measured values in struct
  * @param currentValues
  */
-void PzemZeroValues( _currentValues_t * currentValues )
+void PzemZeroValues( _current_values_t *currentValues )
 {
     currentValues->alarms = 0;
     currentValues->current = 0.0f;

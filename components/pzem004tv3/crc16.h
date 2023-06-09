@@ -1,19 +1,23 @@
 #pragma once
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 #define PROGMEM    /* empty */
 #define pgm_read_byte( x )     ( *( x ) )
 #define pgm_read_word( x )     ( *( x ) )
 #define pgm_read_float( x )    ( *( x ) )
 #define PSTR( STR )            STR
 
-uint16_t crc16( const uint8_t * data,
+uint16_t crc16( const uint8_t *data,
                 uint16_t len );
 
 /* Pre Calculated CRC lookup table */
 /* source: https://www.modbustools.com/modbus_crc16.html */
-static const uint16_t crcTable[] =
-{
+static const uint16_t crcTable[] = {
     0X0000, 0XC0C1, 0XC181, 0X0140, 0XC301, 0X03C0, 0X0280, 0XC241,
     0XC601, 0X06C0, 0X0780, 0XC741, 0X0500, 0XC5C1, 0XC481, 0X0440,
     0XCC01, 0X0CC0, 0X0D80, 0XCD41, 0X0F00, 0XCFC1, 0XCE81, 0X0E40,
@@ -47,3 +51,8 @@ static const uint16_t crcTable[] =
     0X4400, 0X84C1, 0X8581, 0X4540, 0X8701, 0X47C0, 0X4680, 0X8641,
     0X8201, 0X42C0, 0X4380, 0X8341, 0X4100, 0X81C1, 0X8081, 0X4040
 };
+
+
+#ifdef __cplusplus
+}
+#endif

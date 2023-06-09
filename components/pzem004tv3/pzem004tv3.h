@@ -10,7 +10,7 @@
 
 
 #ifdef __cplusplus
-    extern "C" {
+extern "C" {
 #endif
 
 #define RX_BUF_SIZE      8
@@ -18,16 +18,14 @@
 #define RESP_BUF_SIZE    25
 #define UPDATE_TIME      200
 
-typedef struct pzConf_t
-{
+typedef struct pz_conf_t {
     uart_port_t pzem_uart;
     uint8_t pzem_rx_pin;
     uint8_t pzem_tx_pin;
     uint8_t pzem_addr;
-} pzemSetup_t;
+} pzem_setup_t;
 
-typedef struct _currentValues
-{
+typedef struct _current_values {
     float voltage;
     float current;
     float power;
@@ -35,35 +33,17 @@ typedef struct _currentValues
     float frequency;
     float pf;
     uint16_t alarms;
-} _currentValues_t;         /* Measured values */
+} _current_values_t;         /* Measured values */
 
-void PzemInit( pzemSetup_t * pzSetup );
-
-bool PzemCheckCRC( const uint8_t * buf,
-                   uint16_t len );
-
-uint16_t PzemReceive( pzemSetup_t * pzSetup,
-                      uint8_t * resp,
-                      uint16_t len );
-
-bool PzemSendCmd8( pzemSetup_t * pzSetup,
-                   uint8_t cmd,
-                   uint16_t rAddr,
-                   uint16_t val,
-                   bool check,
-                   uint16_t slave_addr );
-
-void PzemSetCRC( uint8_t * buf,
-                 uint16_t len );
-
-bool PzemGetValues( pzemSetup_t * pzSetup,
-                    _currentValues_t * pmonValues );
-
-uint8_t PzReadAddress( pzemSetup_t * pzSetup,
-                       bool update );
-
-bool PzResetEnergy( pzemSetup_t * pzSetup );
-void PzemZeroValues( _currentValues_t * currentValues );
+void PzemInit( pzem_setup_t *pzSetup );
+bool PzemCheckCRC( const uint8_t *buf, uint16_t len );
+uint16_t PzemReceive( pzem_setup_t *pzSetup, uint8_t *resp, uint16_t len );
+bool PzemSendCmd8( pzem_setup_t *pzSetup, uint8_t cmd, uint16_t rAddr, uint16_t val, bool check, uint16_t slave_addr );
+void PzemSetCRC( uint8_t *buf, uint16_t len );
+bool PzemGetValues( pzem_setup_t *pzSetup, _current_values_t *pmonValues );
+uint8_t PzReadAddress( pzem_setup_t *pzSetup, bool update );
+bool PzResetEnergy( pzem_setup_t *pzSetup );
+void PzemZeroValues( _current_values_t *currentValues );
 
 #define millis( x )              ( esp_timer_get_time( x ) / 1000 )
 //#define UART_LL_GET_HW( num )    ( ( ( num ) == 0 ) ? ( &UART0 ) : ( ( ( num ) == 1 ) ? ( &UART1 ) : ( &UART2 ) ) )
@@ -100,5 +80,5 @@ void PzemZeroValues( _currentValues_t * currentValues );
 
 
 #ifdef __cplusplus
-    }
+}
 #endif

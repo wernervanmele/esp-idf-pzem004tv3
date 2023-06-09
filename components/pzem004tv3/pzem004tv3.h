@@ -25,13 +25,19 @@ typedef struct pz_conf_t {
     uint8_t pzem_addr;
 } pzem_setup_t;
 
+/***
+ * https://en.wikipedia.org/wiki/AC_power
+*/
 typedef struct _current_values {
     float voltage;
     float current;
-    float power;
+    float power;            // Active Power P. or Real Power W.
     float energy;
     float frequency;
-    float pf;
+    float pf;               // Ratio of active to apparent power, cos(fi), eg pf = 0.77, 77% of current is doing the real work
+    float apparant_power;   // product of RMS values (VA)
+    float reactive_power;   // Reactive Power Q. exist when V and I are not in Phase. (VAr)
+    float fi;               // Phase angle between S and P (Apparent and Real).
     uint16_t alarms;
 } _current_values_t;         /* Measured values */
 

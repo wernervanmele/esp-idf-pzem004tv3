@@ -35,7 +35,7 @@ typedef struct _current_values {
     float energy;
     float frequency;
     float pf;               // Ratio of active to apparent power, cos(fi), eg pf = 0.77, 77% of current is doing the real work
-    float apparant_power;   // product of RMS values (VA)
+    float apparent_power;   // product of RMS values (VA)
     float reactive_power;   // Reactive Power Q. exist when V and I are not in Phase. (VAr)
     float fi;               // Phase angle between S and P (Apparent and Real).
     uint16_t alarms;

@@ -269,7 +269,7 @@ bool PzemGetValues( pzem_setup_t *pzSetup, _current_values_t *pmonValues )
 
     /* Extra values calculated because not produced by sensor */
     /* Apparent Power*/
-    pmonValues->apparant_power = (pmonValues->voltage * pmonValues->current);
+    pmonValues->apparent_power = (pmonValues->voltage * pmonValues->current);
 
     /* FI, Angle between Apparent and real Power
         https://www.electricaltechnology.org/2013/07/power-factor.html
@@ -279,7 +279,7 @@ bool PzemGetValues( pzem_setup_t *pzSetup, _current_values_t *pmonValues )
     /**
      * Reactive Power (Q, VAr): also known as phantom power, dissipated power resulting from inductive and capacitive load measured in VAr.
     */
-    pmonValues->reactive_power = pmonValues->apparant_power * sin(pmonValues->fi);
+    pmonValues->reactive_power = pmonValues->apparent_power * sin(pmonValues->fi);
 
     free( respbuff );
     return true;
@@ -332,7 +332,7 @@ void PzemZeroValues( _current_values_t *currentValues )
     currentValues->pf = 0.0f;
     currentValues->power = 0.0f;
     currentValues->voltage = 0.0f;
-    currentValues->apparant_power = 0.0f;
+    currentValues->apparent_power = 0.0f;
     currentValues->reactive_power = 0.0f;
     currentValues->fi = 0.0f;
 }

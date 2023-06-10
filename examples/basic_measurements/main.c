@@ -36,7 +36,7 @@ void PMonTask( void * pz )
     for( ;; )
     {
         PzemGetValues( &pzConf, &pzValues );
-        printf( "Vrms: %.1fV - Irms: %.3fA - Prms: %.1fW - E: %.2fWh\n", pzValues.voltage, pzValues.current, pzValues.power, pzValues.energy );
+        printf( "Vrms: %.1fV - Irms: %.3fA - P: %.1fW - E: %.2fWh\n", pzValues.voltage, pzValues.current, pzValues.power, pzValues.energy );
         printf( "Freq: %.1fHz - PF: %.2f\n", pzValues.frequency, pzValues.pf );
 
         ESP_LOGI( TAG, "Stack High Water Mark: %ld Bytes free", ( unsigned long int ) uxTaskGetStackHighWaterMark( NULL ) );     /* Show's what's left of the specified stacksize */

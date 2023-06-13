@@ -4,5 +4,4 @@
 build/
 test/
 src/
-CMakeLists.txt
 main.c

@@ -5,6 +5,7 @@
  */
 #include "pzem004tv3.h"
 #include <math.h>
+#include <string.h>
 
 uint16_t _lastRead = 0; /* Last time values were updated */
 
@@ -49,7 +50,7 @@ void PzemInit( pzem_setup_t *pzSetup )
     /* Configure UART parameters */
     ESP_ERROR_CHECK( uart_param_config( _uart_num, &uart_config ) );
 
-    /* Set UART pins(TX: IO4, RX: IO5, RTS: IO18, CTS: IO19) */
+    /* Set UART pins(TX: , RX: , RTS: -1, CTS: -1) */
     ESP_ERROR_CHECK( uart_set_pin( _uart_num, pzSetup->pzem_tx_pin, pzSetup->pzem_rx_pin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE ) );
 }
 
@@ -85,7 +86,9 @@ uint16_t PzemReceive( pzem_setup_t *pzSetup, uint8_t *resp, uint16_t len )
  */
 uint8_t PzReadAddress( pzem_setup_t *pzSetup, bool update )
 {
-    static uint8_t response[ 7 ];
+    static uint8_t response[ 7 ] = {0};
+    memset(response, 0, sizeof(response));
+
     uint8_t addr = 0;
 
     /* Read 1 register */
@@ -116,8 +119,12 @@ uint8_t PzReadAddress( pzem_setup_t *pzSetup, bool update )
  */
 bool PzResetEnergy( pzem_setup_t *pzSetup )
 {
-    uint8_t *buffer = ( uint8_t * ) malloc( 4 + 1 );
-    uint8_t *reply = ( uint8_t * ) malloc( 5 + 1 );
+    static const char *LOG_TAG = "PZ_RESET_ENERGY";
+    uint8_t buffer[4] = {0};
+    uint8_t reply[5] = {0};
+
+    memset(buffer, 0, sizeof(buffer));
+    memset(reply, 0, sizeof(reply));
 
     buffer[ 0 ] = pzSetup->pzem_addr;
     buffer[ 1 ] = 0x00;
@@ -125,19 +132,17 @@ bool PzResetEnergy( pzem_setup_t *pzSetup )
     buffer[ 3 ] = 0x00;
     buffer[ 4 ] = 0x00;
 
-    PzemSetCRC( buffer, 4 );
-    uart_write_bytes( pzSetup->pzem_uart, buffer, 4 );
+    (void)PzemSetCRC( buffer, 4 );
+    if (uart_write_bytes( pzSetup->pzem_uart, buffer, 4 ) == -1) {
+        ESP_LOGE(LOG_TAG, "Failed to write to sensor/UART !!");
+    }
 
     uint16_t length = PzemReceive( pzSetup, reply, 5 );
 
     if ( ( length == 0 ) || ( length == 5 ) ) {
-        free( buffer );
-        free( reply );
         return false;
     }
 
-    free( buffer );
-    free( reply );
     return true;
 }
 
@@ -156,8 +161,11 @@ bool PzemSendCmd8( pzem_setup_t *pzSetup, uint8_t cmd, uint16_t regAddr, uint16_
     static const char *LOG_TAG = "PZ_SEND8";
 
     /* send and receive buffers memory allocation */
-    uint8_t *txdata = ( uint8_t * ) malloc( TX_BUF_SIZE + 1 );
-    uint8_t *rxdata = ( uint8_t * ) malloc( RX_BUF_SIZE + 1 );
+    uint8_t txdata[TX_BUF_SIZE] = {0};
+    uint8_t rxdata[RX_BUF_SIZE] = {0};
+
+    memset(txdata, 0, sizeof(txdata));
+    memset(rxdata, 0, sizeof(rxdata));
 
     if ( ( slave_addr == 0xFFFF ) ||
             ( slave_addr < 0x01 ) ||
@@ -173,7 +181,7 @@ bool PzemSendCmd8( pzem_setup_t *pzSetup, uint8_t cmd, uint16_t regAddr, uint16_
     txdata[ 5 ] = ( regVal ) & 0xFF;
 
     /* Add CRC to array */
-    PzemSetCRC( txdata, TX_BUF_SIZE );
+    (void)PzemSetCRC( txdata, TX_BUF_SIZE );
 
     const int txBytes = uart_write_bytes( pzSetup->pzem_uart, txdata, TX_BUF_SIZE );
 
@@ -182,23 +190,17 @@ bool PzemSendCmd8( pzem_setup_t *pzSetup, uint8_t cmd, uint16_t regAddr, uint16_
 
     if ( check ) {
         if ( !PzemReceive( pzSetup, rxdata, RX_BUF_SIZE ) ) { /* if check enabled, read the response */
-            free( txdata );
-            free( rxdata );
             return false;
         }
 
         /* Check if response is same as send */
         for (uint8_t i = 0; i < 8; i++) {
             if ( txdata[ i ] != rxdata[ i ] ) {
-                free( txdata );
-                free( rxdata );
                 return false;
             }
         }
     }
 
-    free( txdata );
-    free( rxdata );
     return true;
 }
 
@@ -219,16 +221,19 @@ bool PzemGetValues( pzem_setup_t *pzSetup, _current_values_t *pmonValues )
     }
 
     /* Zero all values */
-    PzemZeroValues( ( _current_values_t * ) pmonValues );
+    (void)PzemZeroValues( ( _current_values_t * ) pmonValues );
 
-    uint8_t *respbuff = ( uint8_t * ) malloc( RESP_BUF_SIZE + 1 );
+    uint8_t respbuff[RESP_BUF_SIZE] = {0};
+    memset(respbuff, 0, sizeof(respbuff));
+
 
     /* Tell the sensor to Read 10 Registers from 0x00 to 0x0A (all values) */
-    PzemSendCmd8( pzSetup, CMD_RIR, 0x00, 0x0A, false, 0xFFFF );
+    if (PzemSendCmd8( pzSetup, CMD_RIR, 0x00, 0x0A, false, 0xFFFF ) == false) {
+        ESP_LOGE(LOG_TAG, "Error writing to registers !!");
+    }
 
     /* Read response from the sensor, if everything goes well we retreived 25 Bytes */
     if ( PzemReceive( pzSetup, respbuff, RESP_BUF_SIZE ) != RESP_BUF_SIZE ) { /* Something went wrong */
-        free( respbuff );
         return false;
     }
 
@@ -274,14 +279,13 @@ bool PzemGetValues( pzem_setup_t *pzSetup, _current_values_t *pmonValues )
     /* FI, Angle between Apparent and real Power
         https://www.electricaltechnology.org/2013/07/power-factor.html
     */
-    pmonValues->fi = 360.0F * (acos(pmonValues->pf) / (2.0F * 3.14159265F));
+    pmonValues->fi = 360.0F * (acosf(pmonValues->pf) / (2.0F * 3.14159265F));           // replaced acos() (double) with acosf() (float).
 
     /**
      * Reactive Power (Q, VAr): also known as phantom power, dissipated power resulting from inductive and capacitive load measured in VAr.
     */
-    pmonValues->reactive_power = pmonValues->apparent_power * sin(pmonValues->fi);
+    pmonValues->reactive_power = pmonValues->apparent_power * sinf(pmonValues->fi);         // replacd sin() with sinf() as we mainly use floats instead of double
 
-    free( respbuff );
     return true;
 }
 

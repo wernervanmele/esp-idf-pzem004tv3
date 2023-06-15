@@ -4,8 +4,9 @@
  *
  */
 #include "pzem004tv3.h"
-#include <math.h>
-#include <string.h>
+
+/* Declare static func in .c file (linker warnings) */
+static uint16_t crc16(const uint8_t *data, uint16_t len);
 
 uint16_t _lastRead = 0; /* Last time values were updated */
 
@@ -52,6 +53,7 @@ void PzemInit( pzem_setup_t *pzSetup )
 
     /* Set UART pins(TX: , RX: , RTS: -1, CTS: -1) */
     ESP_ERROR_CHECK( uart_set_pin( _uart_num, pzSetup->pzem_tx_pin, pzSetup->pzem_rx_pin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE ) );
+
 }
 
 
@@ -296,6 +298,9 @@ bool PzemGetValues( pzem_setup_t *pzSetup, _current_values_t *pmonValues )
  */
 void PzemSetCRC( uint8_t *buf, uint16_t len )
 {
+    static const char *TAG = "[SETCRC]";
+    uint64_t start = esp_timer_get_time();
+
     if ( len <= 2 ) { /* sanity check */
         return;
     }
@@ -305,6 +310,9 @@ void PzemSetCRC( uint8_t *buf, uint16_t len )
     /* Write high and low byte to last two positions */
     buf[ len - 2 ] = crc & 0xFF;          /* Low byte first */
     buf[ len - 1 ] = ( crc >> 8 ) & 0xFF; /* High byte second */
+
+    uint64_t stop = esp_timer_get_time();
+    ESP_LOGV(TAG, "Routine crc16() took %llu microseconds", (stop - start));
 }
 
 /**
@@ -315,11 +323,17 @@ void PzemSetCRC( uint8_t *buf, uint16_t len )
  */
 bool PzemCheckCRC( const uint8_t *buf, uint16_t len )
 {
+    static const char *TAG = "[CHECKCRC]";
+    uint64_t start = esp_timer_get_time();
+
     if ( len <= 2 ) { /* Sanity check */
         return false;
     }
-
     uint16_t crc = crc16( buf, len - 2 ); /* Compute CRC of data */
+
+    uint64_t stop = esp_timer_get_time();
+    ESP_LOGV(TAG, "Routine crc16() took %llu microseconds", (stop - start));
+
     return ( ( uint16_t ) buf[ len - 2 ] | ( uint16_t ) buf[ len - 1 ] << 8 ) == crc;
 }
 
@@ -339,4 +353,24 @@ void PzemZeroValues( _current_values_t *currentValues )
     currentValues->apparent_power = 0.0f;
     currentValues->reactive_power = 0.0f;
     currentValues->fi = 0.0f;
+}
+
+/**
+ * @brief Calculate CRC and compare to lookup table
+ * @param data
+ * @param len
+ * @return crc result
+ */
+static uint16_t crc16(const uint8_t *data, uint16_t len)
+{
+    uint8_t nTemp; // CRC table index
+    uint16_t crc = 0xFFFF; // Default value
+
+    while (len--) {
+        nTemp = *data++ ^ crc;
+        crc >>= 8;
+        crc ^= (uint16_t)pgm_read_word(&crcTable[nTemp]);
+    }
+
+    return crc;
 }

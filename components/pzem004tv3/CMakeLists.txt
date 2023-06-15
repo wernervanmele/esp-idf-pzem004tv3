@@ -5,3 +5,8 @@ idf_component_register(
     INCLUDE_DIRS "."
     REQUIRES  "${req}"
 )
+
+set_source_files_properties(pzem004tv3.c
+    PROPERTIES COMPILE_FLAGS
+     -Wall -Wextra -Werror
+)

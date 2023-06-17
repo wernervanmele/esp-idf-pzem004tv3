@@ -86,7 +86,7 @@ uint16_t PzemReceive( pzem_setup_t *pzSetup, uint8_t *resp, uint16_t len )
  * @param update
  * @return uint8_t
  */
-uint8_t PzReadAddress( pzem_setup_t *pzSetup, bool update )
+uint8_t PzReadAddress( pzem_setup_t *pzSetup)
 {
     static uint8_t response[ 7 ] = {0};
     memset(response, 0, sizeof(response));
@@ -106,12 +106,35 @@ uint8_t PzReadAddress( pzem_setup_t *pzSetup, bool update )
     addr = ( ( uint32_t ) response[ 3 ] << 8 | /* Raw address */
              ( uint32_t ) response[ 4 ] );
 
-    /* Update the internal address if desired */
-    if ( update ) {
-        pzSetup->pzem_addr = addr;
+    return addr;
+}
+
+/**
+ * @brief Change the default address of the pzem module
+ * @return  true if succeeded
+ */
+bool PzSetAddress(pzem_setup_t *pzSetup, uint8_t new_addr)
+{
+    static const char *LOG_TAG = "PZ_SET_ADDR";
+
+    // sanity check, see if address is valid
+    if (new_addr < 0x01 || new_addr > 0xF7 ) {
+        ESP_LOGI(LOG_TAG, "Address failed sanity check");
+        return false;
     }
 
-    return addr;
+    if (pzSetup->pzem_addr  == new_addr) {
+        ESP_LOGI(LOG_TAG, "New address is the same as the old address");
+        return false;
+    }
+
+    // Write the new address to the register
+    if (!PzemSendCmd8( pzSetup, CMD_WSR, WREG_ADDR, new_addr, true, 0xFFFF )) {
+        ESP_LOGE(LOG_TAG, "Failed to set the new address !!!!");
+        return false;
+    }
+
+    return true;
 }
 
 /**

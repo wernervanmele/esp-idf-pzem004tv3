@@ -48,9 +48,10 @@ uint16_t PzemReceive( pzem_setup_t *pzSetup, uint8_t *resp, uint16_t len );
 bool PzemSendCmd8( pzem_setup_t *pzSetup, uint8_t cmd, uint16_t rAddr, uint16_t val, bool check, uint16_t slave_addr );
 void PzemSetCRC( uint8_t *buf, uint16_t len );
 bool PzemGetValues( pzem_setup_t *pzSetup, _current_values_t *pmonValues );
-uint8_t PzReadAddress( pzem_setup_t *pzSetup, bool update );
+uint8_t PzReadAddress( pzem_setup_t *pzSetup);
 bool PzResetEnergy( pzem_setup_t *pzSetup );
 void PzemZeroValues( _current_values_t *currentValues );
+bool PzSetAddress(pzem_setup_t *pzSetup, uint8_t new_addr);
 
 #define millis( x )              ( esp_timer_get_time( x ) / 1000 )
 //#define UART_LL_GET_HW( num )    ( ( ( num ) == 0 ) ? ( &UART0 ) : ( ( ( num ) == 1 ) ? ( &UART1 ) : ( &UART2 ) ) )

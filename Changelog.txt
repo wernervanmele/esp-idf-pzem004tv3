@@ -1,0 +1,9 @@
+Date            tag
+-------------------------------------------------
+17-jun-2023	    v0.0.6
+- added Changelog.md 
+- implemented PzSetAddress() function to change the device address + example.  
+- Remove the update boolean from the PzReadAddress() function.
+---
+15-jun-2023	    v0.0.5
+- 	too much to mention.
